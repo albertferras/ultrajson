@@ -38,10 +38,17 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 
 #include <Python.h>
 #include <ultrajson.h>
+#include "cacheddict.h"
 
 
 //#define PRINTMARK() fprintf(stderr, "%s: MARK(%d)\n", __FILE__, __LINE__)
 #define PRINTMARK()
+
+typedef struct {
+  const char* tmp_bytes;
+  const char* copied_bytes;
+  int ref_count;
+} PrivateState;
 
 static void Object_objectAddKey(void *prv, JSOBJ obj, JSOBJ name, JSOBJ value)
 {
@@ -80,7 +87,7 @@ static JSOBJ Object_newNull(void *prv)
 
 static JSOBJ Object_newObject(void *prv)
 {
-  return PyDict_New();
+    return new_cacheddict(prv);
 }
 
 static JSOBJ Object_newArray(void *prv)
@@ -113,6 +120,21 @@ static void Object_releaseObject(void *prv, JSOBJ obj)
   Py_DECREF( ((PyObject *)obj));
 }
 
+static void Object_cacheJson(void *prv, JSOBJ obj, char* start, char* end)
+{
+  PrivateState* ps = (PrivateState*) prv;
+  CachedDictObject* cobj = (CachedDictObject*) obj;
+
+  if (ps->copied_bytes == 0) {
+    ps->copied_bytes = strdup(ps->tmp_bytes);
+  }
+  ps->ref_count++;
+  cobj->offset = start - ps->tmp_bytes;
+  cobj->len = end - start;
+  cobj->raw_json = ps->copied_bytes;
+  return;
+}
+
 static char *g_kwlist[] = {"obj", NULL};
 
 PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
@@ -135,6 +157,7 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
     Object_newUnsignedLong,
     Object_newDouble,
     Object_releaseObject,
+    Object_cacheJson,
     PyObject_Malloc,
     PyObject_Free,
     PyObject_Realloc
@@ -169,6 +192,14 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
 
   decoder.errorStr = NULL;
   decoder.errorOffset = NULL;
+
+  PrivateState prv = {
+    PyBytes_AS_STRING(sarg),
+    0,
+    0
+  };
+  decoder.prv = (void*) &prv;
+  printf("prv=%p\n", decoder.prv);
 
   dconv_s2d_init(DCONV_S2D_ALLOW_TRAILING_JUNK, 0.0, 0.0, "Infinity", "NaN");
 

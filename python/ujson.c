@@ -37,6 +37,7 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 */
 
 #include <Python.h>
+#include "cacheddict.h"
 #include "version.h"
 
 /* objToJSON */
@@ -87,6 +88,7 @@ PyObject *PyInit_ujson(void)
   PyObject *version_string;
 
   initObjToJSON();
+  PyInit_cacheddict();
   module = PyModule_Create(&moduledef);
 
   if (module == NULL)

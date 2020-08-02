@@ -39,6 +39,7 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #include <Python.h>
 #include <stdio.h>
 #include <ultrajson.h>
+#include "cacheddict.h"
 
 #define EPOCH_ORD 719163
 static PyObject* type_decimal = NULL;
@@ -564,6 +565,38 @@ static void Object_beginTypeContext (JSOBJ _obj, JSONTypeContext *tc, JSONObject
 ISITERABLE:
   if (PyDict_Check(obj))
   {
+     if (UNLIKELY(PyObject_HasAttrString(obj, "__ijson__"))
+         && ((CachedDictObject*)obj)->raw_json != NULL)
+      {
+        PyObject* toJSONFunc = PyObject_GetAttrString(obj, "__ijson__");
+        PyObject* tuple = PyTuple_New(0);
+        PyObject* toJSONResult = PyObject_Call(toJSONFunc, tuple, NULL);
+        Py_DECREF(tuple);
+        Py_DECREF(toJSONFunc);
+
+        if (toJSONResult == NULL)
+        {
+            goto INVALID;
+        }
+        if (PyErr_Occurred())
+        {
+          Py_DECREF(toJSONResult);
+          goto INVALID;
+        }
+
+        if (!PyBytes_Check(toJSONResult) && !PyUnicode_Check(toJSONResult))
+        {
+          Py_DECREF(toJSONResult);
+          PyErr_Format (PyExc_TypeError, "expected string");
+          goto INVALID;
+        }
+
+        PRINTMARK();
+        pc->PyTypeToJSON = PyRawJSONToUTF8;
+        tc->type = JT_RAW;
+        GET_TC(tc)->rawJSONValue = toJSONResult;
+        return;
+      }
     PRINTMARK();
     tc->type = JT_OBJECT;
     SetupDictIter(obj, pc, enc);
