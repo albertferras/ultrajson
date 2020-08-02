@@ -6,8 +6,9 @@ static PyObject *
 CachedDict_get_json(CachedDictObject *self, PyObject *unused)
 {
     if (self->raw_json != 0) {
-        printf("Using raw\n");
-        return PyBytes_FromStringAndSize(self->raw_json + self->offset, self->len);
+        return PyBytes_FromStringAndSize(
+                PyBytes_AsString(self->raw_json) + self->offset,
+                self->len);
     }
     // do something here so that serializer knows it has to ignore it?
     return Py_None;
@@ -57,14 +58,6 @@ new_cacheddict()
     obj->raw_json = 0;
     obj->offset = 0;
     obj->len = 0;
-//    CachedDictObject* obj = PyObject_New(CachedDictObject, &CachedDictType);
-
-//    PyObject *args = PyTuple_New(0);
-//    PyObject *kwargs = Py_BuildValue("{s:i}", "b", 5);
-//    CachedDictType.tp_init(obj, args, kwargs);
-//    Py_DECREF(kwargs);
-//    Py_DECREF(args);
-
     return obj;
 }
 

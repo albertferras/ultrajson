@@ -45,9 +45,7 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #define PRINTMARK()
 
 typedef struct {
-  const char* tmp_bytes;
-  const char* copied_bytes;
-  int ref_count;
+  PyObject* sarg;
 } PrivateState;
 
 static void Object_objectAddKey(void *prv, JSOBJ obj, JSOBJ name, JSOBJ value)
@@ -125,13 +123,11 @@ static void Object_cacheJson(void *prv, JSOBJ obj, char* start, char* end)
   PrivateState* ps = (PrivateState*) prv;
   CachedDictObject* cobj = (CachedDictObject*) obj;
 
-  if (ps->copied_bytes == 0) {
-    ps->copied_bytes = strdup(ps->tmp_bytes);
-  }
-  ps->ref_count++;
-  cobj->offset = start - ps->tmp_bytes;
+  cobj->raw_json = ps->sarg;
+  Py_INCREF(ps->sarg);
+  char * c_raw_json = PyBytes_AS_STRING(ps->sarg);
+  cobj->offset = c_raw_json - start;
   cobj->len = end - start;
-  cobj->raw_json = ps->copied_bytes;
   return;
 }
 
@@ -193,13 +189,8 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
   decoder.errorStr = NULL;
   decoder.errorOffset = NULL;
 
-  PrivateState prv = {
-    PyBytes_AS_STRING(sarg),
-    0,
-    0
-  };
+  PrivateState prv = {sarg};
   decoder.prv = (void*) &prv;
-  printf("prv=%p\n", decoder.prv);
 
   dconv_s2d_init(DCONV_S2D_ALLOW_TRAILING_JUNK, 0.0, 0.0, "Infinity", "NaN");
 
@@ -209,7 +200,7 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
 
   if (sarg != arg)
   {
-    Py_DECREF(sarg);
+      Py_DECREF(sarg);
   }
 
   if (decoder.errorStr)

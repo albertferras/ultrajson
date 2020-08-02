@@ -5,7 +5,7 @@
 
 typedef struct {
     PyDictObject list;
-    const char* raw_json;
+    PyObject* raw_json;
     size_t offset;
     size_t len;
 } CachedDictObject;
