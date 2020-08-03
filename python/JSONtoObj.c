@@ -120,15 +120,25 @@ static void Object_releaseObject(void *prv, JSOBJ obj)
 
 static void Object_cacheJson(void *prv, JSOBJ obj, char* start, char* end)
 {
-  PrivateState* ps = (PrivateState*) prv;
-  CachedDictObject* cobj = (CachedDictObject*) obj;
+    PrivateState* ps = (PrivateState*) prv;
+    CachedDictObject* cobj = (CachedDictObject*) obj;
 
-  cobj->raw_json = ps->sarg;
-  Py_INCREF(ps->sarg);
-  char * c_raw_json = PyBytes_AS_STRING(ps->sarg);
-  cobj->offset = c_raw_json - start;
-  cobj->len = end - start;
-  return;
+    cobj->raw_json = ps->sarg;
+    Py_INCREF(ps->sarg);
+
+    char * c_raw_json = PyBytes_AS_STRING(ps->sarg);
+    cobj->offset = start - c_raw_json;
+    cobj->len = end - start;
+    cobj->parent_obj = NULL;
+    return;
+}
+
+static void Object_cacheJsonLinkParent(void *prv, JSOBJ obj, JSOBJ parent)
+{
+    CachedDictObject * cobj = ((CachedDictObject*) obj);
+    cobj->parent_obj = parent;
+    Py_INCREF(cobj->parent_obj);
+    return;
 }
 
 static char *g_kwlist[] = {"obj", NULL};
@@ -154,6 +164,7 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
     Object_newDouble,
     Object_releaseObject,
     Object_cacheJson,
+    Object_cacheJsonLinkParent,
     PyObject_Malloc,
     PyObject_Free,
     PyObject_Realloc

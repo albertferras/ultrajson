@@ -88,7 +88,10 @@ PyObject *PyInit_ujson(void)
   PyObject *version_string;
 
   initObjToJSON();
-  PyInit_cacheddict();
+  if (init_cacheddict() == NULL) {
+      return NULL;
+  }
+  
   module = PyModule_Create(&moduledef);
 
   if (module == NULL)

@@ -637,6 +637,7 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
       if (len == 0)
       {
         ds->start ++;
+        ds->lastType = JT_OBJECT;
         return newObj;
       }
 
@@ -680,6 +681,11 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
       return NULL;
     }
 
+    if (ds->lastType == JT_OBJECT)
+    {
+        ds->dec->cacheJsonLinkParent(ds->prv, itemValue, newObj);
+    }
+
     ds->dec->objectAddKey (ds->prv, newObj, itemName, itemValue);
 
     SkipWhitespace(ds);
@@ -690,6 +696,7 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
       {
         ds->objDepth--;
         ds->dec->cacheJson(ds->prv, newObj, obj_start, ds->start);
+        ds->lastType = JT_OBJECT;
         return newObj;
       }
       case ',':

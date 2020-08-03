@@ -326,6 +326,7 @@ typedef struct __JSONObjectDecoder
   JSOBJ (*newDouble)(void *prv, double value);
   void (*releaseObject)(void *prv, JSOBJ obj);
   void (*cacheJson)(void *prv, JSOBJ obj, char* start, char* end);
+  void (*cacheJsonLinkParent)(void *prv, JSOBJ obj, JSOBJ parent);
   JSPFN_MALLOC malloc;
   JSPFN_FREE free;
   JSPFN_REALLOC realloc;

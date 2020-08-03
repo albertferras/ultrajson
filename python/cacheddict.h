@@ -3,16 +3,16 @@
 
 #include <Python.h>
 
-typedef struct {
+typedef struct sCachedDictObject CachedDictObject;
+struct sCachedDictObject{
     PyDictObject list;
     PyObject* raw_json;
     size_t offset;
     size_t len;
-} CachedDictObject;
+    CachedDictObject* parent_obj;
+};
 
 CachedDictObject* new_cacheddict();
-static PyTypeObject CachedDictType;
-
-PyMODINIT_FUNC PyInit_cacheddict(void);
+PyObject* init_cacheddict(void);
 
 #endif
