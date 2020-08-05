@@ -3,6 +3,8 @@
 #include "cacheddict.h"
 
 
+#define WRAP_METHOD
+
 static PyObject *
 CachedDict_get_json(CachedDictObject *self, PyObject *unused)
 {
@@ -11,17 +13,17 @@ CachedDict_get_json(CachedDictObject *self, PyObject *unused)
                 PyBytes_AsString(self->raw_json) + self->offset,
                 self->len);
     }
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
-static cacheddict_touch(CachedDictObject *cobj) {
+static cachedobj_invalidate(CachedDictObject *cobj) {
     // Forget about raw_json because it's not valid for this dict anymore
     cobj->raw_json = NULL;
     Py_XDECREF(cobj->raw_json);
 
     // Recursively invalidate parent raw_json's
     if (cobj->parent_obj != NULL) {
-        cacheddict_touch(cobj->parent_obj);
+        cachedobj_invalidate(cobj->parent_obj);
         Py_XDECREF(cobj->parent_obj);
         cobj->parent_obj = NULL;
     }
@@ -49,29 +51,58 @@ CachedDict_dealloc(CachedDictObject *self)
     PyDict_Type.tp_dealloc((PyObject *) self);
 }
 
-static PyObject *
-CachedDict__setitem__(PyObject *self, PyObject *args, PyObject *kwds) {
-    printf("ARGS: %s\n",
-           PyBytes_AsString(
-                   PyUnicode_AsEncodedString(PyObject_Repr(args), "utf-8", "~E~")
-                   )
-           );
-//    printf("KARGS: %s\n", PyUnicode_AsEncodedString(PyObject_Repr(kwds)));
-//    PyDict_SetItem((PyObject*) self, args);
-//    PyDict_Type.tp_as_mapping->mp_ass_subscript((PyObject*) self, v, w);
-    return Py_None;
+static int
+CachedDict__setitem__(CachedDictObject *self, PyObject *key, PyObject *value) {
+    cachedobj_invalidate(self);
+    return PyDict_Type.tp_as_mapping->mp_ass_subscript((PyObject*) self, key, value);
 }
+
+static PyObject *
+CachedDict_setdefault(CachedDictObject *self, PyObject * const* args, size_t nargsf) {
+    cachedobj_invalidate(self);
+
+    // TODO Can be simplified if we find the bounded `func` method so that we dont have to manually pass the `self` to
+    // PyObject_CallFunctionObjArgs. Also new call methods available with Python3.9, which will make this easier
+    PyTypeObject* baseclass = ((PyObject*) self)->ob_type->tp_base;
+    PyObject* func = PyObject_GetAttrString((PyObject*) baseclass, "setdefault");
+    if (func == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Could not find method");
+        return NULL;
+    }
+
+    PyObject* result;
+    result = PyObject_CallFunctionObjArgs(func, self,
+                                          nargsf > 0 ? args[0] : NULL,
+                                          nargsf > 1 ? args[1] : NULL,
+                                          NULL);
+    Py_DECREF(func);
+    return result;
+}
+
 
 static PyMethodDef CachedDict_methods[] = {
         {"__ijson__", (PyCFunction) CachedDict_get_json, METH_NOARGS,
                 PyDoc_STR("get cached json string")},
         {"dbg", (PyCFunction) CachedDict_dbg, METH_NOARGS,
          PyDoc_STR("dbg")},
-        {"__setitem__", (PyCFunction) CachedDict__setitem__, METH_VARARGS | METH_KEYWORDS,
-         PyDoc_STR("set item")},
 
-    {NULL},
+        // todo invalidate cache when calling:
+        {"setdefault", (PyCFunction)(void(*)(void))CachedDict_setdefault, METH_FASTCALL, ""},
+//        DICT_POP_METHODDEF
+//        DICT_POPITEM_METHODDEF
+//        {"update", (PyCFunction)(void(*)(void))dict_update, METH_VARARGS | METH_KEYWORDS,
+//                    update__doc__},
+//        {"clear",           (PyCFunction)dict_clear,        METH_NOARGS,
+//                    clear__doc__},
+        {NULL},
 };
+
+static PyMappingMethods CachedDict_mappingmethods = {
+        (lenfunc)NULL,                       /*mp_length*/
+        (binaryfunc)NULL,      /*mp_subscript*/
+        (objobjargproc)CachedDict__setitem__,   /*mp_ass_subscript*/
+};
+
 
 static int
 CachedDict_init(CachedDictObject *self, PyObject *args, PyObject *kwds)
@@ -103,6 +134,7 @@ PyTypeObject CachedDictType = {
     .tp_init = (initproc) CachedDict_init,
     .tp_dealloc = (destructor) CachedDict_dealloc,
     .tp_methods = CachedDict_methods,
+    .tp_as_mapping = &CachedDict_mappingmethods
 };
 
 

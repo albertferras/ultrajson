@@ -5,7 +5,7 @@
 
 typedef struct sCachedDictObject CachedDictObject;
 struct sCachedDictObject{
-    PyDictObject list;
+    PyDictObject dict;
     PyObject* raw_json;
     size_t offset;
     size_t len;
