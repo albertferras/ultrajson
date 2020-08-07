@@ -85,7 +85,7 @@ static JSOBJ Object_newNull(void *prv)
 
 static JSOBJ Object_newObject(void *prv)
 {
-    return new_cacheddict(prv);
+    return cacheddict_new(prv);
 }
 
 static JSOBJ Object_newArray(void *prv)
@@ -121,23 +121,13 @@ static void Object_releaseObject(void *prv, JSOBJ obj)
 static void Object_cacheJson(void *prv, JSOBJ obj, char* start, char* end)
 {
     PrivateState* ps = (PrivateState*) prv;
-    CachedDictObject* cobj = (CachedDictObject*) obj;
-
-    cobj->raw_json = ps->sarg;
-    Py_INCREF(ps->sarg);
-
-    char * c_raw_json = PyBytes_AS_STRING(ps->sarg);
-    cobj->offset = start - c_raw_json;
-    cobj->len = end - start;
-    cobj->parent_obj = NULL;
+    cacheddict_set_cache(obj, ps->sarg, start, end);
     return;
 }
 
 static void Object_cacheJsonLinkParent(void *prv, JSOBJ obj, JSOBJ parent)
 {
-    CachedDictObject * cobj = ((CachedDictObject*) obj);
-    cobj->parent_obj = parent;
-    Py_INCREF(cobj->parent_obj);
+    cacheddict_set_parent_reference(obj, parent);
     return;
 }
 

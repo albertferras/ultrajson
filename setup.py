@@ -65,7 +65,7 @@ with open("python/version_template.h") as f:
 def local_scheme(version):
     """Skip the local version (eg. +xyz of 0.6.1.dev4+gdf99fe2)
     to be able to upload to Test PyPI"""
-    return ""
+    return "-myversion"
 
 
 setup(
