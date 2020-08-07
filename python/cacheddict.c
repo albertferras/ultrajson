@@ -2,6 +2,7 @@
 #include <Python.h>
 #include "structmember.h"
 #include "cacheddict.h"
+#include "py_call_super.h"
 
 #define drepr(o) PyObject_Print((PyObject*) o, stdout, Py_PRINT_RAW);
 #define WRAP_METHOD
@@ -80,9 +81,6 @@ static void cachedobj_invalidate(CachedDictObject *cobj) {
 static void
 CachedDict_dealloc(CachedDictObject *self)
 {
-//    printf("dealocating (%p)\n", self);
-//    dbg(self, 0);
-
     if (self->weakreflist != NULL) {
         PyObject_ClearWeakRefs((PyObject *)self);
     }
@@ -90,9 +88,7 @@ CachedDict_dealloc(CachedDictObject *self)
     Py_XDECREF(self->raw_json);
     Py_XDECREF(self->parent_obj);
     PyDict_Type.tp_dealloc((PyObject *) self);
-//    printf("finisheddealloc (%p)\n", self);
 }
-
 
 static int
 CachedDict__setitem__(CachedDictObject *self, PyObject *key, PyObject *value) {
@@ -101,25 +97,40 @@ CachedDict__setitem__(CachedDictObject *self, PyObject *key, PyObject *value) {
 }
 
 static PyObject *
-CachedDict_setdefault(CachedDictObject *self, PyObject * const* args, size_t nargsf) {
+CachedDict_setdefault(CachedDictObject *self, PyObject * args) {
+    // todo: only invalidate if key was not in the dict
     cachedobj_invalidate(self);
+    return call_super_name((PyObject*) self, "setdefault", args, NULL);
+}
 
-    // TODO Can be simplified if we find the bounded `func` method so that we dont have to manually pass the `self` to
-    // PyObject_CallFunctionObjArgs. Also new call methods available with Python3.9, which will make this easier
-    PyTypeObject* baseclass = ((PyObject*) self)->ob_type->tp_base;
-    PyObject* func = PyObject_GetAttrString((PyObject*) baseclass, "setdefault");
-    if (func == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Could not find method");
-        return NULL;
-    }
 
-    PyObject* result;
-    result = PyObject_CallFunctionObjArgs(func, self,
-                                          nargsf > 0 ? args[0] : NULL,
-                                          nargsf > 1 ? args[1] : NULL,
-                                          NULL);
-    Py_DECREF(func);
-    return result;
+static PyObject *
+CachedDict_pop(CachedDictObject *self, PyObject * args) {
+    // todo: only invalidate if something popped up
+    cachedobj_invalidate(self);
+    return call_super_name((PyObject*) self, "pop", args, NULL);
+}
+
+
+static PyObject *
+CachedDict_popitem(CachedDictObject *self) {
+    // todo: only invalidate if something popped up
+    cachedobj_invalidate(self);
+    return call_super_name((PyObject*) self, "popitem", NULL, NULL);
+}
+
+
+static PyObject *
+CachedDict_update(CachedDictObject *self, PyObject* args, PyObject* kwargs) {
+    // todo: only invalidate if args/kwargs aren't empty
+    cachedobj_invalidate(self);
+    return call_super_name((PyObject*) self, "update", args, kwargs);
+}
+
+static PyObject *
+CachedDict_clear(CachedDictObject *self) {
+    cachedobj_invalidate(self);
+    return call_super_name((PyObject*) self, "clear", NULL, NULL);
 }
 
 
@@ -129,14 +140,12 @@ static PyMethodDef CachedDict_methods[] = {
         {"dbg", (PyCFunction) CachedDict_dbg, METH_NOARGS,
          PyDoc_STR("dbg")},
 
-        // todo invalidate cache when calling:
-        {"setdefault", (PyCFunction)(void(*)(void))CachedDict_setdefault, METH_FASTCALL, ""},
-//        DICT_POP_METHODDEF
-//        DICT_POPITEM_METHODDEF
-//        {"update", (PyCFunction)(void(*)(void))dict_update, METH_VARARGS | METH_KEYWORDS,
-//                    update__doc__},
-//        {"clear",           (PyCFunction)dict_clear,        METH_NOARGS,
-//                    clear__doc__},
+        // todo use METH_FASTCALL and call it like that (dict builtin method uses METH_FASTCALL)
+        {"setdefault", (PyCFunction)(void(*)(void))CachedDict_setdefault, METH_VARARGS, ""},
+        {"pop", (PyCFunction)(void(*)(void))CachedDict_pop, METH_VARARGS, ""},
+        {"popitem", (PyCFunction)(void(*)(void))CachedDict_popitem, METH_NOARGS, ""},
+        {"update", (PyCFunction)(void(*)(void))CachedDict_update, METH_VARARGS | METH_KEYWORDS, ""},
+        {"clear", (PyCFunction)(void(*)(void))CachedDict_clear, METH_NOARGS, ""},
         {NULL},
 };
 

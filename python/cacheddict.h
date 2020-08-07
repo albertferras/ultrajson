@@ -9,7 +9,6 @@ struct sCachedDictObject{
     PyObject* raw_json;
     size_t offset;
     size_t len;
-//    CachedDictObject* parent_obj;
     PyObject* parent_obj; // weakref
     PyObject *weakreflist;
 };

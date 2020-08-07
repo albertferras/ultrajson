@@ -25,6 +25,7 @@ module1 = Extension(
     sources=dconv_source_files
     + [
         "./python/cacheddict.c",
+        "./python/py_call_super.c",
         "./python/ujson.c",
         "./python/objToJSON.c",
         "./python/JSONtoObj.c",

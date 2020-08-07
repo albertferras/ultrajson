@@ -50,6 +50,16 @@ def edit_assignment(obj):
 def edit_pop(obj):
     obj['e'].pop('asdasd')
     assert obj['e'] == {}
+    obj['e'].pop('does-not-exist', None)
+    with pytest.raises(KeyError):
+        obj['e'].pop('does-not-exist2')
+
+
+def edit_popitem(obj):
+    assert obj['c'].popitem() == ('s', 'bleehehhhhh')
+    with pytest.raises(KeyError):
+        assert obj['c'].popitem()
+    assert obj['c'] == {}
 
 
 def edit_del(obj):
@@ -63,11 +73,36 @@ def edit_setdefault(obj):
     assert obj['e'] == {"asdasd": "hi", 'x': 4, 'y': None}
 
 
+def edit_update1(obj):
+    obj['e'].update([('new', 'value')])
+    assert obj['e'] == {"asdasd": "hi", 'new': 'value'}
+
+
+def edit_update2(obj):
+    obj['e'].update(new='value')
+    assert obj['e'] == {"asdasd": "hi", 'new': 'value'}
+
+
+def edit_update3(obj):
+    obj['e'].update({'new': 'value'})
+    assert obj['e'] == {"asdasd": "hi", 'new': 'value'}
+
+
+def edit_clear(obj):
+    obj['e'].clear()
+    assert obj['e'] == {}
+
+
 @pytest.mark.parametrize('func_edit', [
     edit_assignment,
-    # edit_pop,
+    edit_pop,
+    edit_popitem,
     edit_setdefault,
-    edit_del
+    edit_del,
+    edit_update1,
+    edit_update2,
+    edit_update3,
+    edit_clear
 ])
 def test_edit(func_edit):
     obj = reserialize(SAMPLE_OBJ)
