@@ -56,15 +56,15 @@ https://opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 
 struct DecoderState
 {
-  char *start;  // char idx of current scan
+  char *start;
   char *end;
   wchar_t *escStart;
   wchar_t *escEnd;
   int escHeap;
-  int lastType;  // last obj type decoded (defines what decode_xxx returns)
-  JSUINT32 objDepth;  // depth of nested object
-  void *prv;  // private (?)
-  JSONObjectDecoder *dec; // decoder (methods to convert to python objects)
+  int lastType;
+  JSUINT32 objDepth;
+  void *prv;
+  JSONObjectDecoder *dec;
 };
 
 static JSOBJ FASTCALL_MSVC decode_any( struct DecoderState *ds) FASTCALL_ATTR;
