@@ -38,7 +38,9 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 
 #include <Python.h>
 #include <ultrajson.h>
+#include "cachedobj.h"
 #include "cacheddict.h"
+#include "cachedlist.h"
 
 
 //#define PRINTMARK() fprintf(stderr, "%s: MARK(%d)\n", __FILE__, __LINE__)
@@ -46,7 +48,10 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 
 typedef struct {
   PyObject* sarg;
+  int use_cached;
 } PrivateState;
+
+#define GET_PS(__prv) ((PrivateState *)__prv)
 
 static void Object_objectAddKey(void *prv, JSOBJ obj, JSOBJ name, JSOBJ value)
 {
@@ -85,12 +90,20 @@ static JSOBJ Object_newNull(void *prv)
 
 static JSOBJ Object_newObject(void *prv)
 {
-    return cacheddict_new(prv);
+  if (GET_PS(prv)->use_cached == 1) {
+      return cachedobj_new(&CachedDictType);
+  }
+  else
+    return PyDict_New();
 }
 
 static JSOBJ Object_newArray(void *prv)
 {
-  return PyList_New(0);
+  if (GET_PS(prv)->use_cached == 1) {
+      return cachedobj_new(&CachedListType);
+  }
+  else
+    return PyList_New(0);
 }
 
 static JSOBJ Object_newInteger(void *prv, JSINT32 value)
@@ -120,24 +133,25 @@ static void Object_releaseObject(void *prv, JSOBJ obj)
 
 static void Object_cacheJson(void *prv, JSOBJ obj, char* start, char* end)
 {
-    PrivateState* ps = (PrivateState*) prv;
-    cacheddict_set_cache(obj, ps->sarg, start, end);
-    return;
+    if (GET_PS(prv)->use_cached == 0) return;
+    cachedobj_set_cache(obj, GET_PS(prv)->sarg, start, end);
 }
 
 static void Object_cacheJsonLinkParent(void *prv, JSOBJ obj, JSOBJ parent)
 {
-    cacheddict_set_parent_reference(obj, parent);
-    return;
+    if (GET_PS(prv)->use_cached == 0) return;
+    cachedobj_set_parent_reference(obj, parent);
 }
 
-static char *g_kwlist[] = {"obj", NULL};
+static char *g_kwlist[] = {"obj", "use_cached", NULL};
 
 PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
 {
   PyObject *ret;
   PyObject *sarg;
   PyObject *arg;
+
+  int use_cached = 0;
   JSONObjectDecoder decoder =
   {
     Object_newString,
@@ -157,15 +171,19 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
     Object_cacheJsonLinkParent,
     PyObject_Malloc,
     PyObject_Free,
-    PyObject_Realloc
+    PyObject_Realloc,
+    0, // use_cached
   };
 
   decoder.prv = NULL;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", g_kwlist, &arg))
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|p", g_kwlist, &arg, &use_cached))
   {
       return NULL;
   }
+
+  if (use_cached != 0)
+      decoder.use_cached = use_cached;
 
   if (PyBytes_Check(arg))
   {
@@ -190,7 +208,7 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
   decoder.errorStr = NULL;
   decoder.errorOffset = NULL;
 
-  PrivateState prv = {sarg};
+  PrivateState prv = {sarg, decoder.use_cached};
   decoder.prv = (void*) &prv;
 
   dconv_s2d_init(DCONV_S2D_ALLOW_TRAILING_JUNK, 0.0, 0.0, "Infinity", "NaN");

@@ -330,6 +330,10 @@ typedef struct __JSONObjectDecoder
   JSPFN_MALLOC malloc;
   JSPFN_FREE free;
   JSPFN_REALLOC realloc;
+
+  // params
+  int use_cached;
+
   char *errorStr;
   char *errorOffset;
   void *prv;

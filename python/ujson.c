@@ -38,6 +38,7 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 
 #include <Python.h>
 #include "cacheddict.h"
+#include "cachedlist.h"
 #include "version.h"
 
 /* objToJSON */
@@ -72,7 +73,7 @@ static PyMethodDef ujsonMethods[] = {
 
 static struct PyModuleDef moduledef = {
   PyModuleDef_HEAD_INIT,
-  "ujson",
+  "ujsoncached",
   0,              /* m_doc */
   -1,             /* m_size */
   ujsonMethods,   /* m_methods */
@@ -82,13 +83,16 @@ static struct PyModuleDef moduledef = {
   NULL            /* m_free */
 };
 
-PyObject *PyInit_ujson(void)
+PyObject *PyInit_ujsoncached(void)
 {
   PyObject *module;
   PyObject *version_string;
 
   initObjToJSON();
   if (init_cacheddict() == NULL) {
+      return NULL;
+  }
+  if (init_cachedlist() == NULL) {
       return NULL;
   }
   

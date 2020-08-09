@@ -565,9 +565,9 @@ static void Object_beginTypeContext (JSOBJ _obj, JSONTypeContext *tc, JSONObject
 ISITERABLE:
   if (PyDict_Check(obj))
   {
-     if (UNLIKELY(PyObject_HasAttrString(obj, "__ijson__"))
-         && ((CachedDictObject*)obj)->raw_json != NULL)
+     if (UNLIKELY(is_cachedobj(obj)))
       {
+         // todo skip ijson call and use cache's char* directly
         PyObject* toJSONFunc = PyObject_GetAttrString(obj, "__ijson__");
         PyObject* tuple = PyTuple_New(0);
         PyObject* toJSONResult = PyObject_Call(toJSONFunc, tuple, NULL);

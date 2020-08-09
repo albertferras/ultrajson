@@ -2,20 +2,15 @@
 #define CACHEDDICT_H
 
 #include <Python.h>
+#include "cachedobj.h"
 
-typedef struct sCachedDictObject CachedDictObject;
-struct sCachedDictObject{
+typedef struct {
     PyDictObject dict;
-    PyObject* raw_json;
-    size_t offset;
-    size_t len;
-    PyObject* parent_obj; // weakref
-    PyObject *weakreflist;
-};
+    CACHEDOBJ_EXTRA
+} CachedDictObject;
 
+extern PyTypeObject CachedDictType;
 CachedDictObject* cacheddict_new();
-void cacheddict_set_cache();
-void cacheddict_set_parent_reference();
 PyObject* init_cacheddict(void);
 
 #endif
