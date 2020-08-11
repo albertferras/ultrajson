@@ -163,6 +163,7 @@ enum JSTYPES
   JT_DOUBLE,    // (double)
   JT_UTF8,      // (char 8-bit)
   JT_RAW,       // (raw char 8-bit)
+  JT_RAW_C,       // (raw char 8-bit (const* and size))
   JT_ARRAY,     // Array structure
   JT_OBJECT,    // Key/Value structure
   JT_INVALID,   // Internal, do not return nor expect

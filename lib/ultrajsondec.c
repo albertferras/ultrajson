@@ -682,9 +682,7 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
     }
 
     if (ds->lastType == JT_OBJECT)
-    {
         ds->dec->cacheJsonLinkParent(ds->prv, itemValue, newObj);
-    }
 
     ds->dec->objectAddKey (ds->prv, newObj, itemName, itemValue);
 

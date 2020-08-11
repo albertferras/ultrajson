@@ -15,7 +15,7 @@ SAMPLE_OBJ = {
     "blist": ["1", "2", {"k": ["value"]}]
 }
 
-refcnt = lambda: sys.gettotalrefcount() if hasattr(sys, 'gettotalrefcount') else '?'
+refcnt = lambda: sys.gettotalrefcount() if hasattr(sys, 'gettotalrefcount') else '<unknown_ref_cnt>'
 
 
 def reserialize(x, use_cached=True):
@@ -184,9 +184,9 @@ def test_edit(func_edit):
 
 def one():
     x = copy.deepcopy(SAMPLE_OBJ)
-    raw = ujson.dumps(x)
+    raw = ujsoncached.dumps(x)
     for _ in range(5):
-        a = ujson.loads(raw)
+        a = ujsoncached.loads(raw)
 
 
 def leaktest():
@@ -198,19 +198,19 @@ def leaktest():
         one()
         x = reserialize(x)
         assert_caches_properly_invalidated(x)
-        if i % 100 == 0:
+        if i % 1000 == 0:
             print(refcnt())
 
 
 def simple():
-    x = ujsoncached.dumps([1, 2])
-    print('serialized')
-    ujsoncached.loads(x)
-    print('deserialized')
+    x = ujsoncached.dumps(SAMPLE_OBJ)
+    print('serialized', x, type(x))
+    result = ujsoncached.loads(x)
+    print('deserialized', result)
 
 
 if __name__ == "__main__":
-    # leaktest()
-    simple()
+    leaktest()
+    # simple()
     print(refcnt())
     print("exit")

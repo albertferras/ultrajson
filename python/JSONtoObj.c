@@ -93,8 +93,7 @@ static JSOBJ Object_newObject(void *prv)
   if (GET_PS(prv)->use_cached == 1) {
       return cachedobj_new(&CachedDictType);
   }
-  else
-    return PyDict_New();
+  else return PyDict_New();
 }
 
 static JSOBJ Object_newArray(void *prv)
@@ -102,8 +101,7 @@ static JSOBJ Object_newArray(void *prv)
   if (GET_PS(prv)->use_cached == 1) {
       return cachedobj_new(&CachedListType);
   }
-  else
-    return PyList_New(0);
+  else return PyList_New(0);
 }
 
 static JSOBJ Object_newInteger(void *prv, JSINT32 value)

@@ -39,7 +39,7 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #include <Python.h>
 #include <stdio.h>
 #include <ultrajson.h>
-#include "cacheddict.h"
+#include "cachedobj.h"
 
 #define EPOCH_ORD 719163
 static PyObject* type_decimal = NULL;
@@ -133,8 +133,13 @@ static void *PyFloatToDOUBLE(JSOBJ _obj, JSONTypeContext *tc, void *outValue, si
 static void *PyStringToUTF8(JSOBJ _obj, JSONTypeContext *tc, void *outValue, size_t *_outLen)
 {
   PyObject *obj = (PyObject *) _obj;
+  printf("PYSTRING TO UTF8\n");
+  drepr(obj);
+    printf("\n");
   *_outLen = PyBytes_GET_SIZE(obj);
-  return PyBytes_AS_STRING(obj);
+  char* str = PyBytes_AS_STRING(obj);
+  printf("got it!\n");
+  return str;
 }
 
 static void *PyUnicodeToUTF8(JSOBJ _obj, JSONTypeContext *tc, void *outValue, size_t *_outLen)
@@ -162,15 +167,23 @@ static void *PyUnicodeToUTF8(JSOBJ _obj, JSONTypeContext *tc, void *outValue, si
 
 static void *PyRawJSONToUTF8(JSOBJ _obj, JSONTypeContext *tc, void *outValue, size_t *_outLen)
 {
-  PyObject *obj = GET_TC(tc)->rawJSONValue;
-  if (PyUnicode_Check(obj))
-  {
-    return PyUnicodeToUTF8(obj, tc, outValue, _outLen);
-  }
-  else
-  {
-    return PyStringToUTF8(obj, tc, outValue, _outLen);
-  }
+    PyObject *obj = GET_TC(tc)->rawJSONValue;
+    if (PyUnicode_Check(obj))
+    {
+        return PyUnicodeToUTF8(obj, tc, outValue, _outLen);
+    }
+    else
+    {
+        return PyStringToUTF8(obj, tc, outValue, _outLen);
+    }
+}
+
+static void *PyCRawJSONToUTF8(JSOBJ _obj, JSONTypeContext *tc, void *outValue, size_t *_outLen)
+{
+    CachedObject* obj = GET_TC(tc)->rawJSONValue;
+    CacheFields* cache = cachedobj_get_cache(obj);
+    *_outLen = cache->len;
+    return PyBytes_AS_STRING(cache->raw_json) + cache->offset;
 }
 
 static int Tuple_iterNext(JSOBJ obj, JSONTypeContext *tc)
@@ -567,34 +580,10 @@ ISITERABLE:
   {
      if (UNLIKELY(is_cachedobj(obj)))
       {
-         // todo skip ijson call and use cache's char* directly
-        PyObject* toJSONFunc = PyObject_GetAttrString(obj, "__ijson__");
-        PyObject* tuple = PyTuple_New(0);
-        PyObject* toJSONResult = PyObject_Call(toJSONFunc, tuple, NULL);
-        Py_DECREF(tuple);
-        Py_DECREF(toJSONFunc);
-
-        if (toJSONResult == NULL)
-        {
-            goto INVALID;
-        }
-        if (PyErr_Occurred())
-        {
-          Py_DECREF(toJSONResult);
-          goto INVALID;
-        }
-
-        if (!PyBytes_Check(toJSONResult) && !PyUnicode_Check(toJSONResult))
-        {
-          Py_DECREF(toJSONResult);
-          PyErr_Format (PyExc_TypeError, "expected string");
-          goto INVALID;
-        }
-
         PRINTMARK();
-        pc->PyTypeToJSON = PyRawJSONToUTF8;
-        tc->type = JT_RAW;
-        GET_TC(tc)->rawJSONValue = toJSONResult;
+        pc->PyTypeToJSON = PyCRawJSONToUTF8;
+        tc->type = JT_RAW_C;
+        GET_TC(tc)->rawJSONValue = obj;
         return;
       }
     PRINTMARK();
