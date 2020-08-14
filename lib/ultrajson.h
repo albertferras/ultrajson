@@ -80,6 +80,7 @@ Dictates and limits how much stack space for buffers UltraJSON will use before r
     #define JSON_MAX_STACK_BUFFER_SIZE 1024
 #endif
 
+
 #ifdef _WIN32
 
     typedef __int64 JSINT64;
@@ -151,6 +152,13 @@ Dictates and limits how much stack space for buffers UltraJSON will use before r
 #if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
     #error "Endianness not supported"
 #endif
+
+enum JSSELECT // deserialize or not current object
+{
+    JSEL_FULL,    // fully deserialize this object
+    JSEL_SKIP,    // skip current object
+    JSEL_PARTIAL, // partially deserialize this object (some of its contents)
+};
 
 enum JSTYPES
 {
@@ -328,6 +336,8 @@ typedef struct __JSONObjectDecoder
   JSPFN_MALLOC malloc;
   JSPFN_FREE free;
   JSPFN_REALLOC realloc;
+  int (*selectPathIsSelected)(void *node_select);
+  void* (*selectPathGet)(void *node_select, JSOBJ obj);
   char *errorStr;
   char *errorOffset;
   void *prv;

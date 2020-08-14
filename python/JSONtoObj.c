@@ -39,12 +39,20 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #include <Python.h>
 #include <ultrajson.h>
 
-
 //#define PRINTMARK() fprintf(stderr, "%s: MARK(%d)\n", __FILE__, __LINE__)
 #define PRINTMARK()
 
+
+//#define drepr(o) PyObject_Print((PyObject*) o, stdout, Py_PRINT_RAW);
+//#define debugprint(...) printf(__VA_ARGS__)
+#define drepr(o)
+#define debugprint(...)
+
+
 static void Object_objectAddKey(void *prv, JSOBJ obj, JSOBJ name, JSOBJ value)
 {
+  debugprint("set "); drepr(name); debugprint(" = "); drepr(value); debugprint(" to "); drepr(obj);
+  debugprint("\n");
   PyDict_SetItem (obj, name, value);
   Py_DECREF( (PyObject *) name);
   Py_DECREF( (PyObject *) value);
@@ -113,13 +121,52 @@ static void Object_releaseObject(void *prv, JSOBJ obj)
   Py_DECREF( ((PyObject *)obj));
 }
 
-static char *g_kwlist[] = {"obj", NULL};
+
+static int SelectPath_isSelected(void *node_select) {
+  debugprint("selectpath_is_selected\n\tnode_select=%p=", node_select);
+  if (node_select == Py_True) {
+    debugprint("TRUE\n");
+    return JSEL_FULL;
+  } else if (node_select == NULL) {
+    debugprint("NULL\n");
+    return JSEL_SKIP;
+  }
+  drepr(node_select);
+  debugprint("\n");
+  return JSEL_PARTIAL;
+}
+
+static void* SelectPath_get(void *node_select, JSOBJ obj) {
+  debugprint("selectpath_get\n\tnode_select=%p=", node_select);
+  if (node_select == NULL) {
+    debugprint("<null>\n");
+    return NULL;
+  }
+
+  drepr(node_select);
+  debugprint("\n\tobj=");
+  drepr(obj);
+  debugprint("\n");
+
+  if (node_select == Py_True) return node_select;
+
+  if (PyDict_Check(node_select)) {
+    return PyDict_GetItem(node_select, obj);
+  } else if (PyLong_Check(node_select)) {
+    // list index (todo)
+    return NULL;
+  }
+  return NULL;
+}
+
+static char *g_kwlist[] = {"obj", "select_properties", NULL};
 
 PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
 {
   PyObject *ret;
   PyObject *sarg;
   PyObject *arg;
+  PyObject *node_select = NULL;
   JSONObjectDecoder decoder =
   {
     Object_newString,
@@ -137,15 +184,17 @@ PyObject* JSONToObj(PyObject* self, PyObject *args, PyObject *kwargs)
     Object_releaseObject,
     PyObject_Malloc,
     PyObject_Free,
-    PyObject_Realloc
+    PyObject_Realloc,
+    SelectPath_isSelected,
+    SelectPath_get,
   };
 
-  decoder.prv = NULL;
-
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", g_kwlist, &arg))
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", g_kwlist, &arg, &node_select))
   {
       return NULL;
   }
+
+  decoder.prv = (node_select == NULL) ? Py_True : node_select;
 
   if (PyBytes_Check(arg))
   {

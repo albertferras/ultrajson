@@ -21,7 +21,7 @@ dconv_source_files = glob("./deps/double-conversion/double-conversion/*.cc")
 dconv_source_files.append("./lib/dconv_wrapper.cc")
 
 module1 = Extension(
-    "ujson",
+    "ujsonselect",
     sources=dconv_source_files
     + [
         "./python/ujson.c",
@@ -68,7 +68,7 @@ def local_scheme(version):
 
 
 setup(
-    name="ujson",
+    name="ujsonselect",
     description="Ultra fast JSON encoder and decoder for Python",
     long_description=README,
     ext_modules=[module1],
