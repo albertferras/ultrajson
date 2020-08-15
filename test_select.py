@@ -14,6 +14,7 @@ ENTITY = {
     "b2b": {"hotel": {"street_name": "SomethingLegal", "stars": None}},
 }
 
+
 class SelectProperties:
     """ Defines properties to retrieve when deserializing a document.
     If no property is defined (eg: `SelectProperties()`) then all properties will be deserialized.
@@ -53,7 +54,7 @@ class SelectProperties:
             {"hotel": {"stars": ENTITY["hotel"]["stars"]}, "legacy": ENTITY["legacy"]},
         ),
         (["hotel.stars", "hotel", "hotel.what"], {"hotel": ENTITY["hotel"]}),
-        (["hotel.stars.x"], {'hotel': {}}),
+        (["hotel.stars.x"], {}),
         (["hotel.stars.x", "hotel.stars"], {"hotel": {"stars": ENTITY["hotel"]["stars"]}}),
         (
             ["literals.canonical.en-GB", "literals.canonical.nope"],
@@ -64,7 +65,7 @@ class SelectProperties:
             {"literals": {"canonical": {"en-GB": EN_GB_LITERALS}}},
         ),
         (["literals.canonical.missing", "literals.canonical.en-GB.1234", "literals.canonical.broken.key"],
-         {"literals": {"canonical": {}}}),
+         {}),
         # nulls
         (["hotel", "b2b.hotel"], {"hotel": ENTITY["hotel"], "b2b": ENTITY["b2b"]}),
         (["hotel.stars", "b2b.hotel.stars"], {"hotel": {"stars": 5}, "b2b": {"hotel": {"stars": None}}}),
@@ -76,7 +77,7 @@ class SelectProperties:
                 "b2b.hotel.stars.bleh",
                 "bleh.bleh.bleh",
             ],
-            {"hotel": {"total_rooms": None}, "b2b": {"hotel": {}}},
+            {"hotel": {"total_rooms": None}},
         ),
     ],
 )

@@ -54,6 +54,7 @@ https://opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #define NULL 0
 #endif
 
+#define JSOBJ_SKIPPED (void*)-1
 
 struct DecoderState
 {
@@ -68,7 +69,7 @@ struct DecoderState
   JSONObjectDecoder *dec;
 };
 
-static JSOBJ FASTCALL_MSVC decode_any( struct DecoderState *ds) FASTCALL_ATTR;
+static JSOBJ FASTCALL_MSVC decode_any( struct DecoderState *ds, int force_select) FASTCALL_ATTR;
 typedef JSOBJ (*PFN_DECODER)( struct DecoderState *ds);
 
 static JSOBJ SetError( struct DecoderState *ds, int offset, const char *message)
@@ -264,8 +265,11 @@ static FASTCALL_ATTR void FASTCALL_MSVC SkipWhitespace(struct DecoderState *ds)
   }
 }
 
-//#define debugprint(...) printf(__VA_ARGS__)
+#ifdef UjsonDebug
+#define debugprint(...) printf(__VA_ARGS__)
+#else
 #define debugprint(f_, ...)
+#endif
 
 static FASTCALL_ATTR int FASTCALL_MSVC SkipJson(struct DecoderState *ds)
 {
@@ -342,11 +346,14 @@ static FASTCALL_ATTR int FASTCALL_MSVC SkipJson(struct DecoderState *ds)
           if (*(++offset) != 'l')
             goto SETERROR;
           break;
+        case '\0':
+          goto SETERROR;
       }
     }
     offset++;
     if (!in_string && list_level == 0 && obj_level == 0) break;
   }
+  if (in_string || list_level || obj_level) goto SETERROR;
   ds->start = offset;
   SkipWhitespace(ds);
   debugprint("%p - %c (instr=%d, list=%d, obj=%d)\n", offset, *offset, in_string, list_level, obj_level);
@@ -675,7 +682,7 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_array(struct DecoderState *ds)
       return SetError(ds, -1, "Unexpected character found when decoding array value (1)");
     }
 
-    itemValue = decode_any(ds);
+    itemValue = decode_any(ds, 0);
 
     if (itemValue == NULL)
     {
@@ -683,7 +690,11 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_array(struct DecoderState *ds)
       return NULL;
     }
 
-    ds->dec->arrayAddItem (ds->prv, newObj, itemValue);
+    if (itemValue == JSOBJ_SKIPPED) {
+      debugprint("Skipped list item\n");
+    } else {
+      ds->dec->arrayAddItem (ds->prv, newObj, itemValue);
+    }
 
     SkipWhitespace(ds);
 
@@ -710,7 +721,7 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
 {
   JSOBJ itemName;
   JSOBJ itemValue;
-  JSOBJ newObj;
+  JSOBJ newObj = JSOBJ_SKIPPED;
   int len;
 
   ds->objDepth++;
@@ -719,14 +730,9 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
     return SetError(ds, -1, "Reached object decoding depth limit");
   }
 
-  if (ds->dec->selectPathIsSelected(ds->prv) == JSEL_SKIP) {
-    debugprint("main skipjson\n");
-    if (!SkipJson(ds)) return NULL;
-    return ds->dec->newNull(ds->prv);
-  };
-
   void* current_node_select = ds->prv;
-  newObj = ds->dec->newObject(ds->prv);
+  if (ds->dec->selectPathIsSelected(ds->prv) == JSEL_FULL || ds->objDepth == 1)
+    newObj = ds->dec->newObject(ds->prv);
   len = 0;
 
   ds->start ++;
@@ -742,26 +748,25 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
       {
         ds->start ++;
         ds->lastType = JT_OBJECT;
-        ds->lastType = JT_OBJECT;
         return newObj;
       }
 
-      ds->dec->releaseObject(ds->prv, newObj);
+      if (newObj != JSOBJ_SKIPPED) ds->dec->releaseObject(ds->prv, newObj);
       return SetError(ds, -1, "Unexpected character in found when decoding object value");
     }
 
     ds->lastType = JT_INVALID;
-    itemName = decode_any(ds);
+    itemName = decode_any(ds, 1);
 
     if (itemName == NULL)
     {
-      ds->dec->releaseObject(ds->prv, newObj);
+      if (newObj != JSOBJ_SKIPPED) ds->dec->releaseObject(ds->prv, newObj);
       return NULL;
     }
 
     if (ds->lastType != JT_UTF8)
     {
-      ds->dec->releaseObject(ds->prv, newObj);
+      if (newObj != JSOBJ_SKIPPED) ds->dec->releaseObject(ds->prv, newObj);
       ds->dec->releaseObject(ds->prv, itemName);
       return SetError(ds, -1, "Key name of object must be 'string' when decoding 'object'");
     }
@@ -770,71 +775,63 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_object( struct DecoderState *ds)
 
     if (*(ds->start++) != ':')
     {
-      ds->dec->releaseObject(ds->prv, newObj);
+      if (newObj != JSOBJ_SKIPPED) ds->dec->releaseObject(ds->prv, newObj);
       ds->dec->releaseObject(ds->prv, itemName);
       return SetError(ds, -1, "No ':' found when decoding object value");
     }
 
     SkipWhitespace(ds);
 
+
     ds->prv = ds->dec->selectPathGet(ds->prv, itemName);
-    int selection_type = ds->dec->selectPathIsSelected(ds->prv);
-    debugprint("sel type %d\n", selection_type);
-    if (selection_type != JSEL_SKIP) {
-      itemValue = decode_any(ds);
-      ds->prv = current_node_select;
-
-      if (itemValue == NULL)
-      {
-        ds->dec->releaseObject(ds->prv, newObj);
-        ds->dec->releaseObject(ds->prv, itemName);
-        return NULL;
-      }
-      if (selection_type == JSEL_PARTIAL && ds->lastType != JT_OBJECT) {
-        debugprint("Cant select subproperties of non-object\n");
-        ds->dec->releaseObject(ds->prv, itemName);
-        ds->dec->releaseObject(ds->prv, itemValue);
-      } else {
-        ds->dec->objectAddKey(ds->prv, newObj, itemName, itemValue);
-        len++;
-      }
-    } else {
-      debugprint("value skipjson\n");
+    itemValue = decode_any(ds, 0);
+    if (itemValue == NULL)
+    {
+      if (newObj != JSOBJ_SKIPPED) ds->dec->releaseObject(ds->prv, newObj);
       ds->dec->releaseObject(ds->prv, itemName);
-      if (!SkipJson(ds)) return NULL;
+      return NULL;
     }
-    ds->prv = current_node_select;
 
+    if (itemValue == JSOBJ_SKIPPED) {
+      debugprint("Skipped\n");
+      ds->dec->releaseObject(ds->prv, itemName);
+    } else {
+      if (newObj == JSOBJ_SKIPPED) newObj = ds->dec->newObject(ds->prv);
+      ds->dec->objectAddKey(ds->prv, newObj, itemName, itemValue);
+      len++;
+    }
+
+    ds->prv = current_node_select;
     SkipWhitespace(ds);
 
     switch (*(ds->start++))
     {
       case '}':
       {
-        debugprint("end dict - return obj\n");
         ds->objDepth--;
-        ds->lastType = JT_OBJECT;
         return newObj;
       }
       case ',':
-        debugprint("new key to check\n");
         break;
 
       default:
-        ds->dec->releaseObject(ds->prv, newObj);
-        debugprint("unknown char %c\n", *(ds->start-1));
+        if (newObj != JSOBJ_SKIPPED) ds->dec->releaseObject(ds->prv, newObj);
         return SetError(ds, -1, "Unexpected character in found when decoding object value");
     }
   }
 }
 
-static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_any(struct DecoderState *ds)
+static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_any(struct DecoderState *ds, int force_select)
 {
+  int selection_type = (!force_select) ? ds->dec->selectPathIsSelected(ds->prv) : JSEL_FULL;
+  if (selection_type == JSEL_SKIP) goto SKIP_ANY;
+
   for (;;)
   {
     switch (*ds->start)
     {
       case '\"':
+        if (selection_type == JSEL_PARTIAL) goto SKIP_ANY;
         return decode_string (ds);
       case '0':
       case '1':
@@ -847,13 +844,22 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_any(struct DecoderState *ds)
       case '8':
       case '9':
       case '-':
+        if (selection_type == JSEL_PARTIAL) goto SKIP_ANY;
         return decode_numeric (ds);
 
-      case '[': return decode_array (ds);
+      case '[':
+        if (selection_type == JSEL_PARTIAL) goto SKIP_ANY; // todo support partial list
+        return decode_array (ds);
       case '{': return decode_object (ds);
-      case 't': return decode_true (ds);
-      case 'f': return decode_false (ds);
-      case 'n': return decode_null (ds);
+      case 't':
+        if (selection_type == JSEL_PARTIAL) goto SKIP_ANY;
+        return decode_true (ds);
+      case 'f':
+        if (selection_type == JSEL_PARTIAL) goto SKIP_ANY;
+        return decode_false (ds);
+      case 'n':
+        if (selection_type == JSEL_PARTIAL) goto SKIP_ANY;
+        return decode_null (ds);
 
       case ' ':
       case '\t':
@@ -867,6 +873,9 @@ static FASTCALL_ATTR JSOBJ FASTCALL_MSVC decode_any(struct DecoderState *ds)
         return SetError(ds, -1, "Expected object or value");
     }
   }
+SKIP_ANY:
+  if (!SkipJson(ds)) return NULL;
+  return JSOBJ_SKIPPED;
 }
 
 JSOBJ JSON_DecodeObject(JSONObjectDecoder *dec, const char *buffer, size_t cbBuffer)
@@ -891,7 +900,11 @@ JSOBJ JSON_DecodeObject(JSONObjectDecoder *dec, const char *buffer, size_t cbBuf
 
   ds.dec = dec;
 
-  ret = decode_any (&ds);
+  ret = decode_any (&ds, 0);
+  if (ret == JSOBJ_SKIPPED) {
+    return SetError(&ds, -1, "everything skipped!");
+  }
+
 
   if (ds.escHeap)
   {

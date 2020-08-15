@@ -20,6 +20,10 @@ Programming Language :: Python :: 3 :: Only
 dconv_source_files = glob("./deps/double-conversion/double-conversion/*.cc")
 dconv_source_files.append("./lib/dconv_wrapper.cc")
 
+extra_cflags = os.environ.get("EXTRA_CFLAGS", [])
+if extra_cflags:
+    extra_cflags = extra_cflags.split(' ')
+
 module1 = Extension(
     "ujsonselect",
     sources=dconv_source_files
@@ -31,7 +35,7 @@ module1 = Extension(
         "./lib/ultrajsondec.c",
     ],
     include_dirs=["./python", "./lib", "./deps/double-conversion/double-conversion"],
-    extra_compile_args=["-D_GNU_SOURCE"],
+    extra_compile_args=["-D_GNU_SOURCE"] + extra_cflags,
     extra_link_args=["-lstdc++", "-lm"],
 )
 

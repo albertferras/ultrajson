@@ -43,11 +43,13 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #define PRINTMARK()
 
 
-//#define drepr(o) PyObject_Print((PyObject*) o, stdout, Py_PRINT_RAW);
-//#define debugprint(...) printf(__VA_ARGS__)
+#ifdef UjsonDebug
+#define drepr(o) PyObject_Print((PyObject*) o, stdout, Py_PRINT_RAW);
+#define debugprint(...) printf(__VA_ARGS__)
+#else
 #define drepr(o)
 #define debugprint(...)
-
+#endif
 
 static void Object_objectAddKey(void *prv, JSOBJ obj, JSOBJ name, JSOBJ value)
 {
