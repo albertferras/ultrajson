@@ -277,92 +277,94 @@ static FASTCALL_ATTR int FASTCALL_MSVC SkipJson(struct DecoderState *ds)
   // Once it finishes "reading" the json obj, leaves ds->start to its last char
   char *offset = ds->start;
 
-  int in_string = 0;
   int list_level = 0;
   int obj_level = 0;
 
-  debugprint("Skipping... %s\n", ds->start);
+  debugprint("Skipping... %.16s\n", ds->start);
   for (;;)
   {
-    debugprint("%p - %c (instr=%d, list=%d, obj=%d)\n", offset, *offset, in_string, list_level, obj_level);
+    debugprint("%p - %c (list=%d, obj=%d)\n", offset, *offset, list_level, obj_level);
 
-    if (*offset == '\"')
-      in_string = !in_string;
-    else if (in_string) {
-      if (*offset == '\\') offset++; // escaping some char, skip it directly.
-    }
-    else {
-      switch (*offset) {
-        case '[':
-          list_level++;
-          break;
-        case ']':
-          list_level--;
-          break;
-        case '{':
-          obj_level++;
-          break;
-        case '}':
-          obj_level--;
-          break;
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-        case '-':
-          offset++;
-          while (('0' <= *offset && *offset <= '9') || *offset == '.') offset++;
-          offset--;
-          break;
-        case 'f':
-          if (*(++offset) != 'a')
-            goto SETERROR;
-          if (*(++offset) != 'l')
-            goto SETERROR;
-          if (*(++offset) != 's')
-            goto SETERROR;
-          if (*(++offset) != 'e')
-            goto SETERROR;
-          break;
-        case 't':
-          if (*(++offset) != 'r')
-            goto SETERROR;
-          if (*(++offset) != 'u')
-            goto SETERROR;
-          if (*(++offset) != 'e')
-            goto SETERROR;
-          break;
-        case 'n':
-          if (*(++offset) != 'u')
-            goto SETERROR;
-          if (*(++offset) != 'l')
-            goto SETERROR;
-          if (*(++offset) != 'l')
-            goto SETERROR;
-          break;
-        case '\0':
+    switch (*offset) {
+      case '\"':
+        for(;*++offset!='\"';) {
+          debugprint("str %p - %c (list=%d, obj=%d)\n", offset, *offset, list_level, obj_level);
+          if (*offset == '\0') goto SETERROR;
+          if (*offset == '\\') {
+            offset++;
+            if (*offset == '\0') goto SETERROR;
+          }
+        }
+        break;
+      case '[':
+        list_level++;
+        break;
+      case ']':
+        list_level--;
+        break;
+      case '{':
+        obj_level++;
+        break;
+      case '}':
+        obj_level--;
+        break;
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+      case '-':
+        offset++;
+        while (('0' <= *offset && *offset <= '9') || *offset == '.') offset++;
+        offset--;
+        break;
+      case 'f':
+        if (*(++offset) != 'a')
           goto SETERROR;
-      }
+        if (*(++offset) != 'l')
+          goto SETERROR;
+        if (*(++offset) != 's')
+          goto SETERROR;
+        if (*(++offset) != 'e')
+          goto SETERROR;
+        break;
+      case 't':
+        if (*(++offset) != 'r')
+          goto SETERROR;
+        if (*(++offset) != 'u')
+          goto SETERROR;
+        if (*(++offset) != 'e')
+          goto SETERROR;
+        break;
+      case 'n':
+        if (*(++offset) != 'u')
+          goto SETERROR;
+        if (*(++offset) != 'l')
+          goto SETERROR;
+        if (*(++offset) != 'l')
+          goto SETERROR;
+        break;
+      case '\0':
+        goto SETERROR;
     }
     offset++;
-    if (!in_string && list_level == 0 && obj_level == 0) break;
+    if (list_level == 0 && obj_level == 0) goto OK_END;
   }
-  if (in_string || list_level || obj_level) goto SETERROR;
+OK_END:
   ds->start = offset;
   SkipWhitespace(ds);
-  debugprint("%p - %c (instr=%d, list=%d, obj=%d)\n", offset, *offset, in_string, list_level, obj_level);
+  debugprint("%p - %c (list=%d, obj=%d)\n", offset, *offset, list_level, obj_level);
   debugprint("Done!\n");
   return 1;
 
 SETERROR:
   debugprint("ERROR!\n");
-  debugprint("%p - %c (instr=%d, list=%d, obj=%d)\n", offset, *offset, in_string, list_level, obj_level);
+  debugprint("%p - %c (list=%d, obj=%d)\n", offset, *offset, list_level, obj_level);
   SetError(ds, -1, "Unexpected character found when skipping non-selected objects");
   return 0;
 }
